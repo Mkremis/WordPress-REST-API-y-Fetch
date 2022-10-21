@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WordPress REST API y Fetch</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <h1>WordPress REST API</h1>
+    <article id="site" class="site"></article>
+    <section id="posts" class="posts"></section>
+    <img class="loader" src="assets/loader.svg" alt="Cargando.." />
+    <template id="post-template">
+      <article class="post">
+        <img class="post-image" />
+        <aside>
+          <h2 class="post-title"></h2>
+          <figure class="post-author">
+            <img />
+            <figcaption></figcaption>
+          </figure>
+          <small class="post-date"></small>
+          <a class="post-link" target="_blank">Ver publicacion original</a>
+          <div class="post-excerpt"></div>
+          <div class="post-categories"></div>
+          <div class="post-tags"></div>
+          <details class="post-content">
+            <summary>Ver contenido de la publicacion</summary>
+            <article></article>
+          </details>
+        </aside>
+      </article>
+      <hr />
+    </template>
+
+    <script>
+      const $site = document.getElementById("site"),
+        $posts = document.getElementById("posts"),
+        $loader = document.querySelector(".loader"),
+        $template = document.getElementById("post-template").content,
+        $fragment = document.createDocumentFragment(),
+        DOMAIN = "https://www.rollingstone.com",
+        SITE = `${DOMAIN}/wp-json`,
+        API_WP = `${SITE}/wp/v2`,
+        POSTS = `${API_WP}/posts?_embed`,
+        PAGES = `${API_WP}/pages`,
+        CATEGORIES = `${API_WP}/categories`;
+
+      let page = 1,
+        perPage = 5;
+
+      function getSiteData() {
+        fetch(SITE)
+          .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+          .then((jsn) => {
+            console.log(jsn);
+            $site.innerHTML = `
+            <h3>Sitio Web</h3>
+            <h2><a href ="${jsn.url}" target="_blank">${jsn.name}</a></h2>
+            <p>${jsn.description}</p>
+            <p>${jsn.timezone_string}</p>
+            `;
+          })
+          .catch((err) => {
+            console.log(err);
+            let message = err.statusText || "ocurrio un error";
+            $site.innerHTML = `${err.status} : ${message}`;
+          });
+      }
+      function getPosts() {
+        $loader.style.display = "block";
+        fetch(`${POSTS}&page=${page}&per_page=${perPage}`)
+          .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+          .then((jsn) => {
+            console.log(jsn);
+            $loader.style.display = "none";
+            jsn.forEach((post) => {
+              $template.querySelector(".post-image").src =
+                post._embedded["wp:featuredmedia"][0].source_url;
+              $template.querySelector(".post-image").alt =
+                post._embedded["wp:featuredmedia"][0].alt_text;
+              $template.querySelector(".post-title").innerHTML =
+                post.title.rendered;
+              $template.querySelector(".post-author img").src = post._embedded
+                .author[0].avatar_urls
+                ? post._embedded.author[0].avatar_urls[48]
+                : "assets/user.png";
+              $template.querySelector(".post-author img").alt =
+                post._embedded.author[0].name || "sin datos del autor";
+              $template.querySelector(".post-author figcaption").innerHTML =
+                post._embedded.author[0].name || "sin datos del autor";
+              $template.querySelector(".post-date").innerHTML = new Date(
+                post.date
+              ).toLocaleString();
+              $template.querySelector(".post-link").href = post.link;
+              $template.querySelector(".post-excerpt").innerHTML =
+                post.excerpt.rendered;
+
+              let categories = "",
+                tags = "";
+
+              post._embedded["wp:term"][0].forEach(
+                (cat) => (categories += `<li>${cat.name}</li>`)
+              );
+              $template.querySelector(".post-categories").innerHTML = `
+              <ul><b>Categorias:</b>${categories}</ul>`;
+
+              post._embedded["wp:term"][1].forEach(
+                (tag) => (tags += `<li>${tag.name}</li>`)
+              );
+              $template.querySelector(".post-tags").innerHTML = `
+              <ul><b>Tags:</b>${tags}</ul>`;
+
+              $template.querySelector(".post-content > article").innerHTML =
+                post.content.rendered;
+              let $clone = $template.cloneNode(true); //document.importNode($fragment,true)
+              $fragment.appendChild($clone);
+            });
+            $posts.appendChild($fragment);
+          })
+          .catch((err) => {
+            console.log(err);
+            let message = err.statusText || "ocurrio un error";
+            $posts.innerHTML = `${err.status} : ${message}`;
+            $loader.style.display = "none";
+          });
+      }
+
+      document.addEventListener("DOMContentLoaded", (e) => {
+        getSiteData();
+        getPosts();
+      });
+
+      window.addEventListener("scroll", (e) => {
+        const { scrollTop, clientHeight, scrollHeight } =
+          document.documentElement; //igual que abajo pero usando desestructuracion del objeto documentElement.
+        // const scrollTop = document.documentElement.scrollTop, //indica cuanto se aleja el scroll del margin-top del documento
+        //   clientHeight = document.documentElement.clientHeight, //indica la altura del viewport visible del cliente
+        //   scrollHeight = document.documentElement.scrollHeight; //indica la distancia total de scroll hasta el punto seleccionado del doc.
+        // console.log(
+        //   `scrollTop: ${scrollTop}, clientHeight: ${clientHeight}, scrollHeight:${scrollHeight}`
+        // );
+        // console.log(scrollTop + clientHeight, scrollHeight);
+        if (scrollTop + clientHeight + 1 >= scrollHeight) {
+          page++;
+          getPosts();
+        }
+      });
+    </script>
+  </body>
+</html>
